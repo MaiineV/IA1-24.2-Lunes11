@@ -33,6 +33,8 @@ public class EnemyIA : MonoBehaviour
             .AddState(IAStates.ATTACK, new Attack())
             .AddState(IAStates.DEATH, new Death());
 
+        fsm.Done(this);
+
         fsm.ChangeState(IAStates.WALK);
     }
 
