@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -13,8 +14,13 @@ public class PathfindingChecker : MonoBehaviour
     {
         if (Input.GetKeyDown(KeyCode.Space))
         {
-            path = Pathfinding.Instance.GetPath(fromTransform.position, toTransform.position);
+            Pathfinding.Instance.RequestPath(fromTransform.position, toTransform.position, CallbackPath);
         }
+    }
+
+    private void CallbackPath(List<Node> newPath)
+    {
+        path = newPath;
     }
 
     private void OnDrawGizmos()

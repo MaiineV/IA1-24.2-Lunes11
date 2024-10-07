@@ -1,189 +1,189 @@
-//#if UNITY_EDITOR
+#if UNITY_EDITOR
 
-//using System;
-//using System.Collections;
-//using System.Collections.Generic;
-//using UnityEditor;
-//using UnityEngine;
-//using System.Linq;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using UnityEditor;
+using UnityEngine;
+using System.Linq;
 
-//[ExecuteInEditMode]
-//public class NodesGenerator : MonoBehaviour
-//{
-//    [SerializeField] private Vector3 _area;
-//    [SerializeField] private float _nodeSize;
-//    private float _nodeDistance => _nodeSize * 2.5f;
-//    [SerializeField] private Node _prefab;
+[ExecuteInEditMode]
+public class NodesGenerator : MonoBehaviour
+{
+    [SerializeField] private Vector3 _area;
+    [SerializeField] private float _nodeSize;
+    private float _nodeDistance => _nodeSize * 2.5f;
+    [SerializeField] private Node _prefab;
 
-//    [SerializeField] private List<GameObject> _nodeList = new List<GameObject>();
-//    private HashSet<Vector3> _spawnedNodes = new HashSet<Vector3>();
+    [SerializeField] private List<GameObject> _nodeList = new List<GameObject>();
+    private HashSet<Vector3> _spawnedNodes = new HashSet<Vector3>();
 
-//    private float maxX => transform.position.x + _area.x / 2;
-//    private float minY => transform.position.y - _area.y / 2;
+    private float maxX => transform.position.x + _area.x / 2;
+    private float minY => transform.position.y - _area.y / 2;
 
-//    private float minZ => transform.position.z - _area.z / 2;
-//    private float maxZ => minZ + _area.z;
+    private float minZ => transform.position.z - _area.z / 2;
+    private float maxZ => minZ + _area.z;
 
-//    private int multiplyDir = -1;
+    private int multiplyDir = -1;
 
-//    public void Generate()
-//    {
-//        _spawnedNodes = new HashSet<Vector3>();
-//        var actualStartRay = transform.position;
-//        actualStartRay.x -= _area.x / 2;
-//        actualStartRay.y += _area.y / 2;
-//        actualStartRay.z += _area.z / 2;
+    public void Generate()
+    {
+        _spawnedNodes = new HashSet<Vector3>();
+        var actualStartRay = transform.position;
+        actualStartRay.x -= _area.x / 2;
+        actualStartRay.y += _area.y / 2;
+        actualStartRay.z += _area.z / 2;
 
-//        Node actualNode;
-//        var count = 0;
-//        while (actualStartRay.y >= minY)
-//        {
-//            actualStartRay.x = transform.position.x - (_area.x / 2);
-//            actualStartRay.z = transform.position.z + _area.z / 2;
-            
-//            while (actualStartRay.x <= maxX)
-//            {
-//                var ray = new Ray(actualStartRay, Vector3.down);
+        Node actualNode;
+        var count = 0;
+        while (actualStartRay.y >= minY)
+        {
+            actualStartRay.x = transform.position.x - (_area.x / 2);
+            actualStartRay.z = transform.position.z + _area.z / 2;
 
-//                if (Physics.Raycast(ray, out var hit, Mathf.Infinity, LayerManager.LM_FLOOR))
-//                {
-//                    if (!Physics.Raycast(ray, (hit.point - actualStartRay).magnitude, LayerManager.LM_NODEOBSTACLE))
-//                    {
-//                        if (!_spawnedNodes.Contains(hit.point + Vector3.up))
-//                        {                       
-//                            actualNode = PrefabUtility.InstantiatePrefab(_prefab, transform) as Node;
-//                            actualNode.gameObject.name += count;
-//                            actualNode.transform.position = hit.point + Vector3.up;
-//                            _spawnedNodes.Add(hit.point + Vector3.up);
+            while (actualStartRay.x <= maxX)
+            {
+                var ray = new Ray(actualStartRay, Vector3.down);
 
-//                            _nodeList.Add(actualNode.gameObject);
-//                        }
-//                    }
-//                }
+                if (Physics.Raycast(ray, out var hit, Mathf.Infinity, LayerMask.GetMask("Floor")))
+                {
+                    if (!Physics.Raycast(ray, (hit.point - actualStartRay).magnitude, LayerMask.GetMask("Obstacle")))
+                    {
+                        if (!_spawnedNodes.Contains(hit.point + Vector3.up))
+                        {
+                            actualNode = PrefabUtility.InstantiatePrefab(_prefab, transform) as Node;
+                            actualNode.gameObject.name += count;
+                            actualNode.transform.position = hit.point + Vector3.up;
+                            _spawnedNodes.Add(hit.point + Vector3.up);
 
-//                float distance = _nodeDistance;
-//                distance *= multiplyDir;
-//                actualStartRay.z += distance;
+                            _nodeList.Add(actualNode.gameObject);
+                        }
+                    }
+                }
 
-//                if (actualStartRay.z > maxZ || actualStartRay.z < minZ)
-//                {
-//                    actualStartRay.z -= distance;
-//                    multiplyDir *= -1;
-//                    actualStartRay.x += _nodeDistance;
-//                }
+                float distance = _nodeDistance;
+                distance *= multiplyDir;
+                actualStartRay.z += distance;
 
-//                count++;
-//            }
-            
-//            multiplyDir = -1;
-//            actualStartRay.y -= 1;
-//        }
-       
+                if (actualStartRay.z > maxZ || actualStartRay.z < minZ)
+                {
+                    actualStartRay.z -= distance;
+                    multiplyDir *= -1;
+                    actualStartRay.x += _nodeDistance;
+                }
 
-//        multiplyDir = -1;
-//    }
+                count++;
+            }
 
-//    public void DeleteNodes()
-//    {
-//        if (!_nodeList.Any()) return;
+            multiplyDir = -1;
+            actualStartRay.y -= 1;
+        }
 
-//        foreach (var node in _nodeList)
-//        {
-//            DestroyImmediate(node);
-//        }
 
-//        _nodeList = new List<GameObject>();
-//    }
+        multiplyDir = -1;
+    }
 
-//    public void GenerateNeighbours()
-//    {
-//        foreach (var node in _nodeList.Select(actualNode => actualNode.GetComponent<Node>()))
-//        {
-//            Undo.RecordObject(node, "SetNeighbours");
-//            node.ClearNeighbours();
-//        }
+    public void DeleteNodes()
+    {
+        if (!_nodeList.Any()) return;
 
-//        for (var i = 0; i < 2; i++)
-//        {
-//            foreach (var actualNode in _nodeList.Select(actualNode => actualNode.GetComponent<Node>()))
-//            {
-//                Undo.RecordObject(actualNode, "SetNeighbours");
-//                var neighbours =
-//                    Physics.OverlapSphere(actualNode.transform.position, _nodeDistance, LayerManager.LM_NODE);
+        foreach (var node in _nodeList)
+        {
+            DestroyImmediate(node);
+        }
 
-//                foreach (var neighbour in neighbours)
-//                {
-//                    var checkingNeighbour = neighbour.gameObject.GetComponent<Node>();
-                    
-//                    if (checkingNeighbour == actualNode) continue;
+        _nodeList = new List<GameObject>();
+    }
 
-//                    if (actualNode.CheckNeighbor(checkingNeighbour)) continue;
+    public void GenerateNeighbours()
+    {
+        foreach (var node in _nodeList.Select(actualNode => actualNode.GetComponent<Node>()))
+        {
+            Undo.RecordObject(node, "SetNeighbours");
+            node.neighbours.Clear();
+        }
 
-//                    var dir = neighbour.transform.position - actualNode.transform.position;
-//                    var rayWallChecker = new Ray(actualNode.transform.position, dir);
+        for (var i = 0; i < 2; i++)
+        {
+            foreach (var actualNode in _nodeList.Select(actualNode => actualNode.GetComponent<Node>()))
+            {
+                Undo.RecordObject(actualNode, "SetNeighbours");
+                var neighbours =
+                    Physics.OverlapSphere(actualNode.transform.position, _nodeDistance, LayerMask.GetMask("Node"));
 
-//                    if (Physics.Raycast(rayWallChecker, _nodeDistance, LayerManager.LM_WALL)) continue;
+                foreach (var neighbour in neighbours)
+                {
+                    var checkingNeighbour = neighbour.gameObject.GetComponent<Node>();
 
-//                    checkingNeighbour.AddNeighbor(actualNode);
-//                    actualNode.AddNeighbor(checkingNeighbour);
-//                }
-//                PrefabUtility.RecordPrefabInstancePropertyModifications(actualNode);
-//            }
+                    if (checkingNeighbour == actualNode) continue;
 
-//            ClearNodes();
-//        }
-//    }
+                    if (actualNode.neighbours.Contains(checkingNeighbour)) continue;
 
-//    private  void ClearNodes()
-//    {
-//        var nodesToDelete = new Queue<GameObject>();
+                    var dir = neighbour.transform.position - actualNode.transform.position;
+                    var rayWallChecker = new Ray(actualNode.transform.position, dir);
 
-//        foreach (var node in _nodeList)
-//        {
-//            var colliders =
-//                Physics.OverlapSphere(node.transform.position, _nodeSize, LayerManager.LM_NODE).Select(x=>x.gameObject);
-            
-//           var closestNodes = colliders.Where(x=>x != node && !nodesToDelete.Contains(x)).Select(x => x);
-            
-//            var mNode = node.GetComponent<Node>();
-            
-//            if (Physics.CheckSphere(node.transform.position, _nodeSize, LayerManager.LM_NODEOBSTACLE) || !mNode.HasNeighbours() || closestNodes.Any())
-//            {
-//                nodesToDelete.Enqueue(node);
-//            }
-//        }
+                    if (Physics.Raycast(rayWallChecker, _nodeDistance, LayerMask.GetMask("Obstacle", "Floor"))) continue;
 
-//        while (nodesToDelete.Count > 0)
-//        {
-//            var node = nodesToDelete.Dequeue();
-//            _nodeList.Remove(node);
-//            node.GetComponent<Node>().DestroyNode();
+                    checkingNeighbour.neighbours.Add(actualNode);
+                    actualNode.neighbours.Add(checkingNeighbour);
+                }
+                PrefabUtility.RecordPrefabInstancePropertyModifications(actualNode);
+            }
 
-//            DestroyImmediate(node);
-//        }
+            //ClearNodes();
+        }
+    }
 
-//        _nodeList = _nodeList.Where(x => x != null).ToList();
-//    }
+    private void ClearNodes()
+    {
+        var nodesToDelete = new Queue<GameObject>();
 
-//    public void RemoveNulls()
-//    {
-//        _nodeList = _nodeList.Where(x => x != null).ToList();
-//    }
+        foreach (var node in _nodeList)
+        {
+            var colliders =
+                Physics.OverlapSphere(node.transform.position, _nodeSize, LayerMask.GetMask("Node")).Select(x => x.gameObject);
 
-//    public void RemoveMissing()
-//    {
-//        var mNodes = _nodeList.Select(x => x.GetComponent<Node>());
-//        foreach (var node in mNodes)
-//        {
-//            node.neighbors = node.neighbors.Where(x => true).ToList();
-//        }
-//    }
+            var closestNodes = colliders.Where(x => x != node && !nodesToDelete.Contains(x)).Select(x => x);
 
-//    private void OnDrawGizmos()
-//    {
-//        Gizmos.color = Color.blue;
-//        Gizmos.DrawWireCube(transform.position, _area);
-//    }
-//}
+            var mNode = node.GetComponent<Node>();
 
-//#endif
+            if (Physics.CheckSphere(node.transform.position, _nodeSize, LayerMask.GetMask("Node")) || mNode.neighbours.Count > 0 || closestNodes.Any())
+            {
+                nodesToDelete.Enqueue(node);
+            }
+        }
+
+        while (nodesToDelete.Count > 0)
+        {
+            var node = nodesToDelete.Dequeue();
+            _nodeList.Remove(node);
+            //node.GetComponent<Node>().DestroyNode();
+
+            DestroyImmediate(node);
+        }
+
+        _nodeList = _nodeList.Where(x => x != null).ToList();
+    }
+
+    public void RemoveNulls()
+    {
+        _nodeList = _nodeList.Where(x => x != null).ToList();
+    }
+
+    public void RemoveMissing()
+    {
+        var mNodes = _nodeList.Select(x => x.GetComponent<Node>());
+        foreach (var node in mNodes)
+        {
+            node.neighbours = node.neighbours.Where(x => true).ToList();
+        }
+    }
+
+    private void OnDrawGizmos()
+    {
+        Gizmos.color = Color.blue;
+        Gizmos.DrawWireCube(transform.position, _area);
+    }
+}
+
+#endif
