@@ -29,6 +29,11 @@ public class Node : MonoBehaviour, IWeighted
         }
     }
 
+    public void OnResetWeight()
+    {
+        Weight = 99999999;
+    }
+
     private void OnDrawGizmosSelected()
     {
         Gizmos.DrawWireSphere(transform.position, detectionRange);

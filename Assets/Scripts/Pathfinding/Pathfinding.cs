@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using UnityEngine;
 
+//A*
+//Theta*
 public class Pathfinding : MonoBehaviour
 {
     public static Pathfinding Instance { get; private set; }
@@ -18,13 +20,15 @@ public class Pathfinding : MonoBehaviour
 
     private struct PathRequestData
     {
-        public Vector3 fromPoint; 
+        public Vector3 fromPoint;
         public Vector3 toPoint;
         public Action<List<Node>> callbackPath;
     }
 
     private Queue<PathRequestData> queuePath = new Queue<PathRequestData>();
-    private bool isCalculating = false; 
+    private bool isCalculating = false;
+
+    private Action OnResetNodes = delegate { };
 
     private void Awake()
     {
@@ -35,6 +39,8 @@ public class Pathfinding : MonoBehaviour
     {
         if (!(queuePath.Count > 0) || isCalculating) return;
 
+        OnResetNodes();
+        OnResetNodes = delegate() { };
         isCalculating = true;
         var actualData = queuePath.Dequeue();
         StartCoroutine(Path(actualData.fromPoint, actualData.toPoint, actualData.callbackPath));
@@ -89,12 +95,13 @@ public class Pathfinding : MonoBehaviour
 
         while (actualNode != null && actualNode != toNode && watchdog > 0)
         {
+            OnResetNodes += actualNode.OnResetWeight;
             watchdog--;
 
             foreach (var node in actualNode.neighbours)
             {
                 if (closeNodes.Contains(node)) continue;
-
+                OnResetNodes += node.OnResetWeight;
                 var heuristic = actualNode.Weight +
                     Vector3.Distance(node.transform.position, actualNode.transform.position) +
                     Vector3.Distance(node.transform.position, toNode.transform.position);
@@ -112,7 +119,7 @@ public class Pathfinding : MonoBehaviour
 
             actualNode = openNodes.Dequeue();
 
-            if(counter> 5000)
+            if (counter > 5000)
             {
                 yield return null;
                 counter = 0;
@@ -121,20 +128,89 @@ public class Pathfinding : MonoBehaviour
             counter++;
         }
 
+        #region Theta en funcion aparte
+        //var finalPath = ThetaStar();
+        #endregion
+
+        #region Theta en A*
         var finalPath = new List<Node>();
         actualNode = toNode;
-        while (actualNode != fromNode && actualNode.previous != null)
+        var seeingNode = toNode.previous;
+        finalPath.Add(actualNode);
+
+        watchdog = 10000;
+        counter = 0;
+
+        while (seeingNode != null && seeingNode.previous != null && watchdog > 0 &&
+            actualNode != fromNode && actualNode.previous != null)
         {
-            finalPath.Add(actualNode);
-            actualNode = actualNode.previous;
+            watchdog--;
+            var dir = seeingNode.previous.transform.position -
+                actualNode.transform.position;
+
+            if (!Physics.Raycast(actualNode.transform.position, dir, dir.magnitude, LayerMask.GetMask("Wall")))
+            {
+                seeingNode = seeingNode.previous;
+            }
+            else
+            {
+                finalPath.Add(seeingNode);
+                actualNode = seeingNode;
+                seeingNode = seeingNode.previous;
+            }
+
+            counter++;
+            if (counter > 1000)
+            {
+                yield return null;
+                counter = 0;
+            }
         }
+
+        if (!finalPath.Contains(fromNode))
+            finalPath.Add(fromNode);
+        #endregion
 
         finalPath.Reverse();
         stopWatch.Stop();
         UnityEngine.Debug.Log(stopWatch.Elapsed);
         UnityEngine.Debug.Log(stopWatch.ElapsedTicks);
         callback(finalPath);
-        isCalculating = false;  
+        isCalculating = false;
+    }
+
+    public List<Node> ThetaStar()
+    {
+        var path = new List<Node>();
+        var actualNode = toNode;
+        var seeingNode = toNode.previous;
+        path.Add(actualNode);
+
+        var watchdog = 10000;
+
+        while (seeingNode != null && seeingNode.previous != null && watchdog > 0 &&
+            actualNode != fromNode && actualNode.previous != null)
+        {
+            watchdog--;
+            var dir = seeingNode.previous.transform.position -
+                actualNode.transform.position;
+
+            if (!Physics.Raycast(actualNode.transform.position, dir, dir.magnitude, LayerMask.GetMask("Wall")))
+            {
+                seeingNode = seeingNode.previous;
+            }
+            else
+            {
+                path.Add(seeingNode);
+                actualNode = seeingNode;
+                seeingNode = seeingNode.previous;
+            }
+        }
+
+        if (!path.Contains(fromNode))
+            path.Add(fromNode);
+
+        return path;
     }
 
     public Node GetClosestNode(Collider[] colliders, Vector3 point)
@@ -155,71 +231,76 @@ public class Pathfinding : MonoBehaviour
         return closest.GetComponent<Node>();
     }
 
-    //A*
-    //public List<Node> GetPath(Vector3 from, Vector3 to)
-    //{
-    //    var stopWatch = new Stopwatch();
-    //    stopWatch.Start();
-    //    var fromColliderArray = Physics.OverlapSphere(from, 1.5f, nodeMask);
-    //    if (fromColliderArray.Length > 0)
-    //    {
-    //        fromNode = GetClosestNode(fromColliderArray, from);
-    //    }
+    public static bool OnSight(Vector3 from, Vector3 to)
+    {
+        var dir = to - from;
+        return !Physics.Raycast(from, dir, dir.magnitude, LayerMask.GetMask("Wall"));
 
-    //    var toColliderArray = Physics.OverlapSphere(to, 1.5f, nodeMask);
-    //    if (toColliderArray.Length > 0)
-    //    {
-    //        toNode = GetClosestNode(toColliderArray, to);
-    //    }
+        //A*
+        //public List<Node> GetPath(Vector3 from, Vector3 to)
+        //{
+        //    var stopWatch = new Stopwatch();
+        //    stopWatch.Start();
+        //    var fromColliderArray = Physics.OverlapSphere(from, 1.5f, nodeMask);
+        //    if (fromColliderArray.Length > 0)
+        //    {
+        //        fromNode = GetClosestNode(fromColliderArray, from);
+        //    }
 
-    //    closeNodes = new HashSet<Node>();
-    //    openNodes = new PriorityQueue<Node>();
+        //    var toColliderArray = Physics.OverlapSphere(to, 1.5f, nodeMask);
+        //    if (toColliderArray.Length > 0)
+        //    {
+        //        toNode = GetClosestNode(toColliderArray, to);
+        //    }
 
-    //    var actualNode = fromNode;
-    //    actualNode.Weight = 0;
+        //    closeNodes = new HashSet<Node>();
+        //    openNodes = new PriorityQueue<Node>();
 
-    //    var watchdog = 100000;
+        //    var actualNode = fromNode;
+        //    actualNode.Weight = 0;
 
-    //    while (actualNode != null && actualNode != toNode && watchdog > 0)
-    //    {
-    //        watchdog--;
+        //    var watchdog = 100000;
 
-    //        foreach (var node in actualNode.neighbours)
-    //        {
-    //            if (closeNodes.Contains(node)) continue;
+        //    while (actualNode != null && actualNode != toNode && watchdog > 0)
+        //    {
+        //        watchdog--;
 
-    //            var heuristic = actualNode.Weight + 
-    //                Vector3.Distance(node.transform.position, actualNode.transform.position) +
-    //                Vector3.Distance(node.transform.position, toNode.transform.position);
+        //        foreach (var node in actualNode.neighbours)
+        //        {
+        //            if (closeNodes.Contains(node)) continue;
 
-    //            if (node.Weight > heuristic)
-    //            {
-    //                node.Weight = heuristic;
-    //                node.previous = actualNode;
-    //            }
+        //            var heuristic = actualNode.Weight + 
+        //                Vector3.Distance(node.transform.position, actualNode.transform.position) +
+        //                Vector3.Distance(node.transform.position, toNode.transform.position);
 
-    //            if (!openNodes.Contains(node)) openNodes.Enqueue(node);
-    //        }
+        //            if (node.Weight > heuristic)
+        //            {
+        //                node.Weight = heuristic;
+        //                node.previous = actualNode;
+        //            }
 
-    //        closeNodes.Add(actualNode);
+        //            if (!openNodes.Contains(node)) openNodes.Enqueue(node);
+        //        }
 
-    //        actualNode = openNodes.Dequeue();
-    //    }
+        //        closeNodes.Add(actualNode);
 
-    //    var finalPath = new List<Node>();
-    //    actualNode = toNode;
-    //    while (actualNode != fromNode && actualNode.previous != null)
-    //    {
-    //        finalPath.Add(actualNode);
-    //        actualNode = actualNode.previous;
-    //    }
+        //        actualNode = openNodes.Dequeue();
+        //    }
 
-    //    finalPath.Reverse();
-    //    stopWatch.Stop();
-    //    UnityEngine.Debug.Log(stopWatch.Elapsed);
-    //    UnityEngine.Debug.Log(stopWatch.ElapsedTicks);
-    //    return finalPath;
-    //}
+        //    var finalPath = new List<Node>();
+        //    actualNode = toNode;
+        //    while (actualNode != fromNode && actualNode.previous != null)
+        //    {
+        //        finalPath.Add(actualNode);
+        //        actualNode = actualNode.previous;
+        //    }
 
-   
+        //    finalPath.Reverse();
+        //    stopWatch.Stop();
+        //    UnityEngine.Debug.Log(stopWatch.Elapsed);
+        //    UnityEngine.Debug.Log(stopWatch.ElapsedTicks);
+        //    return finalPath;
+        //}
+
+    }
 }
