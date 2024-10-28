@@ -30,6 +30,8 @@ public class Pathfinding : MonoBehaviour
 
     private Action OnResetNodes = delegate { };
 
+    [SerializeField] private float yMargin;
+
     private void Awake()
     {
         Instance = this;
@@ -148,7 +150,8 @@ public class Pathfinding : MonoBehaviour
             var dir = seeingNode.previous.transform.position -
                 actualNode.transform.position;
 
-            if (!Physics.Raycast(actualNode.transform.position, dir, dir.magnitude, LayerMask.GetMask("Wall")))
+            if (!Physics.Raycast(actualNode.transform.position, dir, dir.magnitude, LayerMask.GetMask("Wall", "Floor"))
+                && dir.y == 0)
             {
                 seeingNode = seeingNode.previous;
             }
@@ -231,10 +234,37 @@ public class Pathfinding : MonoBehaviour
         return closest.GetComponent<Node>();
     }
 
+    public Node GetClosestNode(Vector3 point)
+    {
+        var actualRadious = 2;
+        var colliders = Physics.OverlapSphere(point, actualRadious, LayerMask.GetMask("Node"));
+
+        while (colliders.Length <= 0)
+        {
+            actualRadious *= 2;
+            colliders = Physics.OverlapSphere(point, actualRadious, nodeMask);
+        }
+
+        Collider closest = colliders[0];
+        float minDist = Vector3.Distance(colliders[0].transform.position, point);
+
+        for (int i = 1; i < colliders.Length; i++)
+        {
+            var acutalDistance = Vector3.Distance(colliders[i].transform.position, point);
+            if (acutalDistance < minDist)
+            {
+                minDist = acutalDistance;
+                closest = colliders[i];
+            }
+        }
+
+        return closest.GetComponent<Node>();
+    }
+
     public static bool LineOfSight(Vector3 from, Vector3 to)
     {
         var dir = to - from;
-        return !Physics.Raycast(from, dir, dir.magnitude, LayerMask.GetMask("Wall"));
+        return !Physics.Raycast(from, dir, dir.magnitude, LayerMask.GetMask("Wall", "Floor"));
     }
 
     public static bool FieldOfView(Transform from, Transform to, float viewAngle)

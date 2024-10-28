@@ -10,13 +10,17 @@ using UnityEngine.UIElements;
 public class Player : MonoBehaviour
 {
     [SerializeField] Transform target;
+    [SerializeField] private Vector3 initialPos;
+
+    [SerializeField] Rigidbody rb;
 
     private bool isFollowing;
     private bool isWaitingForPath;
 
-    private List<Node> actualPath = new List<Node>();
+    [SerializeField]private List<Node> actualPath = new List<Node>();
 
     [SerializeField] private float speed;
+    [SerializeField] private float rotationSpeed;
     [SerializeField] private float obstacleRange;
 
     [SerializeField] private float viewRange;
@@ -26,6 +30,11 @@ public class Player : MonoBehaviour
     private int _obstacleCount = 0;
 
     private Vector3 _obstacleDir;
+
+    private void Awake()
+    {
+        initialPos = transform.position;
+    }
 
     // Update is called once per frame
     void Update()
@@ -49,8 +58,16 @@ public class Player : MonoBehaviour
         {
             var dir = target.position - transform.position;
 
-            transform.forward = dir.normalized + _obstacleDir;
-            transform.position += transform.forward * speed * Time.deltaTime;
+            dir.y = 0;
+
+            transform.forward = Vector3.Lerp(transform.forward, dir.normalized + _obstacleDir,rotationSpeed * Time.deltaTime);
+            rb.velocity = transform.forward * speed * Time.deltaTime;
+
+            if (dir.magnitude < 2f)
+            {
+                target = Pathfinding.Instance.GetClosestNode(initialPos).transform;
+            }
+
             return;
         }
 
@@ -60,10 +77,10 @@ public class Player : MonoBehaviour
             Pathfinding.LineOfSight(transform.position, actualPath[0].transform.position))
         {
             var dir = actualPath[0].transform.position - transform.position;
+            dir.y = 0;
+            transform.forward = Vector3.Lerp(transform.forward, dir.normalized + _obstacleDir, rotationSpeed * Time.deltaTime);
 
-            transform.forward = dir.normalized + _obstacleDir;
-
-            transform.position += transform.forward * speed * Time.deltaTime;
+            rb.velocity = transform.forward * speed * Time.deltaTime;
 
             if (dir.magnitude < 1f)
             {
