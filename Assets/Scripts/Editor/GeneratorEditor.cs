@@ -45,6 +45,12 @@ public class GeneratorEditor : Editor
         {
             _nodesGenerator.RemoveMissing();
             EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+        }  
+        
+        if (GUILayout.Button("Clear Isolated Nodes"))
+        {
+            _nodesGenerator.ClearIsolatedNodes();
+            EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
         }
     }
 }

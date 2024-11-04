@@ -90,7 +90,7 @@ public class Player : MonoBehaviour
         else
         {
             isWaitingForPath = true;
-            Pathfinding.Instance.RequestPath(transform.position, target.position, PathCallback);
+            Pathfinding.Instance.RequestPath(transform.position, target.position, PathCallback, ErrorCallback);
         }
 
         _obstacleCount++;
@@ -121,6 +121,11 @@ public class Player : MonoBehaviour
     {
         actualPath = path;
         isWaitingForPath = false;
+    }
+
+    private void ErrorCallback()
+    {
+        Debug.LogError("No se encontro ningun nodo");
     }
 
     private void OnDrawGizmos()

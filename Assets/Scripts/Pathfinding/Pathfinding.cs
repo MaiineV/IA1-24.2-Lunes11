@@ -23,6 +23,7 @@ public class Pathfinding : MonoBehaviour
         public Vector3 fromPoint;
         public Vector3 toPoint;
         public Action<List<Node>> callbackPath;
+        public Action errorCallback;
     }
 
     private Queue<PathRequestData> queuePath = new Queue<PathRequestData>();
@@ -42,28 +43,44 @@ public class Pathfinding : MonoBehaviour
         if (!(queuePath.Count > 0) || isCalculating) return;
 
         OnResetNodes();
-        OnResetNodes = delegate() { };
+        OnResetNodes = delegate () { };
         isCalculating = true;
         var actualData = queuePath.Dequeue();
-        StartCoroutine(Path(actualData.fromPoint, actualData.toPoint, actualData.callbackPath));
+        StartCoroutine(Path(actualData.fromPoint, actualData.toPoint, actualData.callbackPath, actualData.errorCallback));
     }
 
-    public void RequestPath(Vector3 from, Vector3 to, Action<List<Node>> callback)
+    public void RequestPath(Vector3 from, Vector3 to, Action<List<Node>> callback, Action errorCallback)
     {
-        queuePath.Enqueue(new PathRequestData { fromPoint = from, toPoint = to, callbackPath = callback });
+        queuePath.Enqueue(new PathRequestData
+        {
+            fromPoint = from,
+            toPoint = to,
+            callbackPath = callback,
+            errorCallback = errorCallback
+        });
     }
 
-    private IEnumerator Path(Vector3 from, Vector3 to, Action<List<Node>> callback)
+    private IEnumerator Path(Vector3 from, Vector3 to, Action<List<Node>> callback, Action errorCallback)
     {
         var stopWatch = new Stopwatch();
         stopWatch.Start();
+
+        var watchDogSearch = 500;
+
         var actualRadious = 1.5f;
         var fromColliderArray = Physics.OverlapSphere(from, actualRadious, nodeMask);
 
-        while (fromColliderArray.Length <= 0)
+        while (fromColliderArray.Length <= 0 && watchDogSearch > 0)
         {
+            watchDogSearch--;
             actualRadious *= 2;
             fromColliderArray = Physics.OverlapSphere(from, actualRadious, nodeMask);
+        }
+
+        if (fromColliderArray.Length == 0)
+        {
+            errorCallback();
+            yield break;
         }
 
         if (fromColliderArray.Length > 0)
@@ -73,11 +90,19 @@ public class Pathfinding : MonoBehaviour
 
         actualRadious = 1.5f;
         var toColliderArray = Physics.OverlapSphere(to, actualRadious, nodeMask);
+        watchDogSearch = 500;
 
-        while (toColliderArray.Length <= 0)
+        while (toColliderArray.Length <= 0 && watchDogSearch > 0)
         {
+            watchDogSearch--;
             actualRadious *= 2;
             toColliderArray = Physics.OverlapSphere(to, actualRadious, nodeMask);
+        }
+
+        if (toColliderArray.Length == 0)
+        {
+            errorCallback();
+            yield break;
         }
 
         if (toColliderArray.Length > 0)
@@ -278,4 +303,50 @@ public class Pathfinding : MonoBehaviour
 
         return false;
     }
+
+#if UNITY_EDITOR
+
+    public static bool FastPF(Node from, Node to)
+    {
+        var closeNodes = new HashSet<Node>();
+        var openNodes = new PriorityQueue<Node>();
+
+        var actualNode = from;
+        actualNode.Weight = 0;
+
+        var watchdog = 100000;
+
+        var counter = 0;
+
+        while (actualNode != null && actualNode != to && watchdog > 0)
+        {
+            watchdog--;
+
+            foreach (var node in actualNode.neighbours)
+            {
+                if (closeNodes.Contains(node)) continue;
+                var heuristic = actualNode.Weight +
+                    Vector3.Distance(node.transform.position, actualNode.transform.position) +
+                    Vector3.Distance(node.transform.position, to.transform.position);
+
+                if (node.Weight > heuristic)
+                {
+                    node.Weight = heuristic;
+                    node.previous = actualNode;
+                }
+
+                if (!openNodes.Contains(node)) openNodes.Enqueue(node);
+            }
+
+            closeNodes.Add(actualNode);
+
+            actualNode = openNodes.Dequeue();
+
+            counter++;
+        }
+
+        return actualNode == to;
+    }
+
+#endif
 }

@@ -14,7 +14,7 @@ public class PathfindingChecker : MonoBehaviour
     {
         if (Input.GetKeyDown(KeyCode.Space))
         {
-            Pathfinding.Instance.RequestPath(fromTransform.position, toTransform.position, CallbackPath);
+            //Pathfinding.Instance.RequestPath(fromTransform.position, toTransform.position, CallbackPath);
         }
     }
 

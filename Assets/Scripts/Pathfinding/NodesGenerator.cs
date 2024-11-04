@@ -1,11 +1,11 @@
 #if UNITY_EDITOR
-
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 using System.Linq;
+using System.Runtime.CompilerServices;
 
 [ExecuteInEditMode]
 public class NodesGenerator : MonoBehaviour
@@ -15,7 +15,7 @@ public class NodesGenerator : MonoBehaviour
     private float _nodeDistance => _nodeSize * 2.5f;
     [SerializeField] private Node _prefab;
 
-    [SerializeField] private List<GameObject> _nodeList = new List<GameObject>();
+    [SerializeField] private List<Node> _nodeList = new List<Node>();
     private HashSet<Vector3> _spawnedNodes = new HashSet<Vector3>();
 
     private float maxX => transform.position.x + _area.x / 2;
@@ -25,6 +25,12 @@ public class NodesGenerator : MonoBehaviour
     private float maxZ => minZ + _area.z;
 
     private int multiplyDir = -1;
+
+    [SerializeField] private Transform _targetParent;
+
+    [SerializeField] private LayerMask _obstacleMask;
+
+    [SerializeField] private Node _centerNode;
 
     public void Generate()
     {
@@ -47,16 +53,18 @@ public class NodesGenerator : MonoBehaviour
 
                 if (Physics.Raycast(ray, out var hit, Mathf.Infinity, LayerMask.GetMask("Floor")))
                 {
-                    if (!Physics.Raycast(ray, (hit.point - actualStartRay).magnitude, LayerMask.GetMask("Obstacle")))
+                    if (!Physics.Raycast(ray, (hit.point - actualStartRay).magnitude, LayerMask.GetMask("Obstacle"))
+                        && !Physics.CheckSphere(hit.point + Vector3.up, _nodeSize, _obstacleMask)
+                        && hit.point.y > minY)
                     {
-                        if (!_spawnedNodes.Contains(hit.point + Vector3.up))
+                        if (!IsNodeInRange(_spawnedNodes, hit.point + Vector3.up))
                         {
-                            actualNode = PrefabUtility.InstantiatePrefab(_prefab, transform) as Node;
+                            actualNode = PrefabUtility.InstantiatePrefab(_prefab, _targetParent) as Node;
                             actualNode.gameObject.name += count;
                             actualNode.transform.position = hit.point + Vector3.up;
                             _spawnedNodes.Add(hit.point + Vector3.up);
 
-                            _nodeList.Add(actualNode.gameObject);
+                            _nodeList.Add(actualNode);
                         }
                     }
                 }
@@ -89,10 +97,10 @@ public class NodesGenerator : MonoBehaviour
 
         foreach (var node in _nodeList)
         {
-            DestroyImmediate(node);
+            DestroyImmediate(node.gameObject);
         }
 
-        _nodeList = new List<GameObject>();
+        _nodeList = new List<Node>();
     }
 
     public void GenerateNeighbours()
@@ -103,66 +111,53 @@ public class NodesGenerator : MonoBehaviour
             node.neighbours.Clear();
         }
 
-        for (var i = 0; i < 2; i++)
+        foreach (var actualNode in _nodeList)
         {
-            foreach (var actualNode in _nodeList.Select(actualNode => actualNode.GetComponent<Node>()))
+            Undo.RecordObject(actualNode, "SetNeighbours");
+            var neighbours =
+                Physics.OverlapSphere(actualNode.transform.position, _nodeDistance, LayerMask.GetMask("Node"));
+
+            foreach (var neighbour in neighbours)
             {
-                Undo.RecordObject(actualNode, "SetNeighbours");
-                var neighbours =
-                    Physics.OverlapSphere(actualNode.transform.position, _nodeDistance, LayerMask.GetMask("Node"));
+                var checkingNeighbour = neighbour.gameObject.GetComponent<Node>();
 
-                foreach (var neighbour in neighbours)
-                {
-                    var checkingNeighbour = neighbour.gameObject.GetComponent<Node>();
+                if (checkingNeighbour == actualNode) continue;
 
-                    if (checkingNeighbour == actualNode) continue;
+                if (actualNode.neighbours.Contains(checkingNeighbour)) continue;
 
-                    if (actualNode.neighbours.Contains(checkingNeighbour)) continue;
+                var dir = neighbour.transform.position - actualNode.transform.position;
+                var rayWallChecker = new Ray(actualNode.transform.position, dir);
 
-                    var dir = neighbour.transform.position - actualNode.transform.position;
-                    var rayWallChecker = new Ray(actualNode.transform.position, dir);
+                if (Physics.Raycast(rayWallChecker, _nodeDistance, LayerMask.GetMask("Obstacle", "Floor"))
+                    || Vector3.Angle(dir, Vector3.up) < 25 || Vector3.Angle(dir, Vector3.up) > 160
+                    || !Physics.Raycast(actualNode.transform.position + dir / 2, Vector3.down, 2, LayerMask.GetMask("Floor"))) continue;
 
-                    if (Physics.Raycast(rayWallChecker, _nodeDistance, LayerMask.GetMask("Obstacle", "Floor"))) continue;
-
-                    checkingNeighbour.neighbours.Add(actualNode);
-                    actualNode.neighbours.Add(checkingNeighbour);
-                }
-                PrefabUtility.RecordPrefabInstancePropertyModifications(actualNode);
+                checkingNeighbour.neighbours.Add(actualNode);
+                actualNode.neighbours.Add(checkingNeighbour);
             }
-
-            //ClearNodes();
+            PrefabUtility.RecordPrefabInstancePropertyModifications(actualNode);
         }
     }
 
-    private void ClearNodes()
+    public void ClearIsolatedNodes()
     {
-        var nodesToDelete = new Queue<GameObject>();
+        if (_centerNode == null)
+        {
+            Debug.LogWarning("There is no center node assigned");
+            return;
+        }
 
         foreach (var node in _nodeList)
         {
-            var colliders =
-                Physics.OverlapSphere(node.transform.position, _nodeSize, LayerMask.GetMask("Node")).Select(x => x.gameObject);
-
-            var closestNodes = colliders.Where(x => x != node && !nodesToDelete.Contains(x)).Select(x => x);
-
-            var mNode = node.GetComponent<Node>();
-
-            if (Physics.CheckSphere(node.transform.position, _nodeSize, LayerMask.GetMask("Node")) || mNode.neighbours.Count > 0 || closestNodes.Any())
+            if (!Pathfinding.FastPF(_centerNode, node))
             {
-                nodesToDelete.Enqueue(node);
+                foreach (var neighbour in node.neighbours)
+                    neighbour.neighbours.Remove(node);
+
+                DestroyImmediate(node.gameObject);
             }
         }
-
-        while (nodesToDelete.Count > 0)
-        {
-            var node = nodesToDelete.Dequeue();
-            _nodeList.Remove(node);
-            //node.GetComponent<Node>().DestroyNode();
-
-            DestroyImmediate(node);
-        }
-
-        _nodeList = _nodeList.Where(x => x != null).ToList();
+        RemoveNulls();
     }
 
     public void RemoveNulls()
@@ -179,11 +174,21 @@ public class NodesGenerator : MonoBehaviour
         }
     }
 
+    private bool IsNodeInRange(HashSet<Vector3> positions, Vector3 newPosition)
+    {
+        foreach (var nodePosition in positions)
+        {
+            if (Vector3.Distance(nodePosition, newPosition) < _nodeSize)
+                return true;
+        }
+
+        return false;
+    }
+
     private void OnDrawGizmos()
     {
         Gizmos.color = Color.blue;
         Gizmos.DrawWireCube(transform.position, _area);
     }
 }
-
 #endif
